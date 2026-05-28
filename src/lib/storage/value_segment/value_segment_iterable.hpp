@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdlib>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -9,6 +11,25 @@
 #include "storage/value_segment.hpp"
 
 namespace hyrise {
+
+namespace WIP {
+// Reads PREFETCH_DISTANCE from the environment exactly once per program run.
+// Using an inline function ensures a single static instance across all translation units.
+inline size_t prefetch_distance_from_env() {
+  static const size_t distance = [] {
+    if (const char* env_var = std::getenv("PREFETCH_DISTANCE")) {
+      auto distance = static_cast<size_t>(std::stoi(env_var));
+      std::cerr << "Read distance: " << distance << '\n';
+      return distance;
+    }
+    size_t default_distance = 16;
+    std::cerr << "Using default distance: " << default_distance << '\n';
+    return default_distance;
+  }();
+  return distance;
+}
+}  // namespace WIP
+
 // Our function naming for iterables is not correct. `_on_with` is a public function and should not start with `_`,
 // whereas the iterator functions should start with `_` as they are private (but can't, because boost requires them).
 // NOLINTBEGIN(readability-identifier-naming)
@@ -41,9 +62,11 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
 
     if (_segment.is_nullable()) {
       auto begin = PointAccessIterator<PosListIteratorType>{_segment.values().cbegin(), _segment.null_values().cbegin(),
-                                                            position_filter->cbegin(), position_filter->cbegin()};
+                                                            position_filter->cbegin(), position_filter->cbegin(),
+                                                            position_filter->cend()};
       auto end = PointAccessIterator<PosListIteratorType>{_segment.values().cbegin(), _segment.null_values().cbegin(),
-                                                          position_filter->cbegin(), position_filter->cend()};
+                                                          position_filter->cbegin(), position_filter->cend(),
+                                                          position_filter->cend()};
       functor(begin, end);
     } else {
       auto begin = NonNullPointAccessIterator<PosListIteratorType>{
@@ -193,18 +216,27 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
     using NullValueVectorIterator = typename pmr_vector<bool>::const_iterator;
 
     explicit PointAccessIterator(ValueVectorIterator values_begin_it, NullValueVectorIterator null_values_begin_it,
-                                 PosListIteratorType position_filter_begin, PosListIteratorType position_filter_it)
-        : AbstractPointAccessSegmentIterator<PointAccessIterator, SegmentPosition<T>,
-                                             PosListIteratorType>{std::move(position_filter_begin),
-                                                                  std::move(position_filter_it)},
+                                 PosListIteratorType position_filter_begin, PosListIteratorType position_filter_it,
+                                 PosListIteratorType position_filter_end)
+        : AbstractPointAccessSegmentIterator<PointAccessIterator, SegmentPosition<T>, PosListIteratorType>{
+              std::move(position_filter_begin), std::move(position_filter_it)},
           _values_begin_it{std::move(values_begin_it)},
-          _null_values_begin_it{null_values_begin_it} {}
+          _null_values_begin_it{null_values_begin_it},
+          _position_filter_end{std::move(position_filter_end)} {}
 
    private:
     friend class boost::iterator_core_access;  // grants the boost::iterator_facade access to the private interface
 
     SegmentPosition<T> dereference() const {
       const auto& chunk_offsets = this->_chunk_offsets();
+
+      const auto prefetch_distance = WIP::prefetch_distance_from_env();
+      if (this->_position_filter_it + prefetch_distance < _position_filter_end) {
+        const auto prefetch_offset = (this->_position_filter_it + prefetch_distance)->chunk_offset;
+        const auto prefetch_address = &*(_values_begin_it + prefetch_offset);
+        __builtin_prefetch(prefetch_address, 0, 0);
+      }
+
       return SegmentPosition<T>{*(_values_begin_it + chunk_offsets.offset_in_referenced_chunk),
                                 *(_null_values_begin_it + chunk_offsets.offset_in_referenced_chunk),
                                 chunk_offsets.offset_in_poslist};
@@ -212,6 +244,7 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
 
     ValueVectorIterator _values_begin_it;
     NullValueVectorIterator _null_values_begin_it;
+    PosListIteratorType _position_filter_end;
   };
 };
 
