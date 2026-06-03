@@ -22,7 +22,7 @@ inline size_t prefetch_distance_from_env() {
       std::cerr << "Read distance: " << distance << '\n';
       return distance;
     }
-    size_t default_distance = 16;
+    size_t default_distance = 32;
     std::cerr << "Using default distance: " << default_distance << '\n';
     return default_distance;
   }();
@@ -231,11 +231,10 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
       const auto& chunk_offsets = this->_chunk_offsets();
 
       const auto prefetch_distance = WIP::prefetch_distance_from_env();
-      if (this->_position_filter_it + prefetch_distance < _position_filter_end) {
-        const auto prefetch_offset = (this->_position_filter_it + prefetch_distance)->chunk_offset;
-        const auto prefetch_address = &*(_values_begin_it + prefetch_offset);
-        __builtin_prefetch(prefetch_address, 0, 0);
-      }
+      const auto prefetch_iterator = std::min(_position_filter_end - 1, this->_position_filter_it + prefetch_distance);
+      const auto prefetch_offset = prefetch_iterator->chunk_offset;
+      const auto prefetch_address = &*(_values_begin_it + prefetch_offset);
+      __builtin_prefetch(prefetch_address, 0, 0);
 
       return SegmentPosition<T>{*(_values_begin_it + chunk_offsets.offset_in_referenced_chunk),
                                 *(_null_values_begin_it + chunk_offsets.offset_in_referenced_chunk),
