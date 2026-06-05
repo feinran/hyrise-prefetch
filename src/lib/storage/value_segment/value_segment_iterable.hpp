@@ -81,9 +81,9 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
       functor(begin, end);
     } else {
       auto begin = NonNullPointAccessIterator<PosListIteratorType>{
-          _segment.values().cbegin(), position_filter->cbegin(), position_filter->cbegin()};
+          _segment.values().cbegin(), position_filter->cbegin(), position_filter->cbegin(), position_filter->cend()};
       auto end = NonNullPointAccessIterator<PosListIteratorType>{_segment.values().cbegin(), position_filter->cbegin(),
-                                                                 position_filter->cend()};
+                                                                 position_filter->cend(), position_filter->cend()};
       functor(begin, end);
     }
   }
@@ -199,22 +199,25 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
     using ValueVectorIterator = typename pmr_vector<T>::const_iterator;
 
     explicit NonNullPointAccessIterator(ValueVectorIterator values_begin_it, PosListIteratorType position_filter_begin,
-                                        PosListIteratorType position_filter_it)
+                                        PosListIteratorType position_filter_it, PosListIteratorType position_filter_end)
         : AbstractPointAccessSegmentIterator<NonNullPointAccessIterator, SegmentPosition<T>,
                                              PosListIteratorType>{std::move(position_filter_begin),
                                                                   std::move(position_filter_it)},
-          _values_begin_it{std::move(values_begin_it)} {}
+          _values_begin_it{std::move(values_begin_it)},
+          _position_filter_end{std::move(position_filter_end)} {}
 
    private:
     friend class boost::iterator_core_access;  // grants the boost::iterator_facade access to the private interface
 
     SegmentPosition<T> dereference() const {
       const auto& chunk_offsets = this->_chunk_offsets();
+      WIP::prefetch_value(_values_begin_it, this->_position_filter_it, _position_filter_end);
       return SegmentPosition<T>{*(_values_begin_it + chunk_offsets.offset_in_referenced_chunk), false,
                                 chunk_offsets.offset_in_poslist};
     }
 
     ValueVectorIterator _values_begin_it;
+    PosListIteratorType _position_filter_end;
   };
 
   template <typename PosListIteratorType>
