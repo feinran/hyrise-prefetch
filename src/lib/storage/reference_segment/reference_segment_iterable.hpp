@@ -204,7 +204,7 @@ class ReferenceSegmentIterable : public SegmentIterable<ReferenceSegmentIterable
 
       const auto& accessor = (*_accessors)[chunk_id];
       if (accessor.first) {
-        const auto prefetch_iter = _pos_list_it + 16;
+        const auto prefetch_iter = _pos_list_it + _prefetch_distance;
         if (prefetch_iter < _end_pos_list_it) [[likely]] {
           const auto prefetch_offset = prefetch_iter->chunk_offset;
           if (prefetch_offset != INVALID_CHUNK_OFFSET) [[likely]] {
@@ -242,6 +242,7 @@ class ReferenceSegmentIterable : public SegmentIterable<ReferenceSegmentIterable
     PosListIteratorType _begin_pos_list_it;
     PosListIteratorType _pos_list_it;
     PosListIteratorType _end_pos_list_it;
+    size_t _prefetch_distance = Hyrise::get().prefetch_distance;
 
     // PointAccessIterators share vector with one accessor per chunk
     std::shared_ptr<std::vector<std::pair<bool, std::shared_ptr<AbstractSegmentAccessor<T>>>>> _accessors;

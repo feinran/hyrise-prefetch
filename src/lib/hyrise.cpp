@@ -17,7 +17,7 @@
 
 namespace hyrise {
 
-Hyrise::Hyrise() {
+Hyrise::Hyrise() : prefetch_distance(WIP::get_prefetch_distance_from_env()) {
   // The default_memory_resource must be initialized before Hyrise's members so that it is destructed after them and
   // remains accessible during their deconstruction. For example, when the StorageManager is destructed, it causes its
   // stored tables to be deconstructed, too. As these might call deallocate on the default_memory_resource, it is

@@ -48,6 +48,7 @@ class Hyrise : public Singleton<Hyrise> {
   SettingsManager settings_manager;
   LogManager log_manager;
   Topology topology;
+  const size_t prefetch_distance;
 
   // We need to implement the move assignment operator so that the storage manager and plugin manager are destructed
   // in the correct order. This is because the plugin manager might have plugins that need to delete tables, which

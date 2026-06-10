@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "hyrise.hpp"
 #include "storage/pos_lists/abstract_pos_list.hpp"
 #include "storage/segment_iterables.hpp"
 #include "storage/value_segment.hpp"
@@ -15,24 +16,21 @@ namespace hyrise {
 namespace WIP {
 // Reads PREFETCH_DISTANCE from the environment exactly once per program run.
 // Using an inline function ensures a single static instance across all translation units.
-inline size_t prefetch_distance_from_env() {
-  static const size_t distance = [] {
-    if (const char* env_var = std::getenv("PREFETCH_DISTANCE")) {
-      auto distance = static_cast<size_t>(std::stoi(env_var));
-      std::cerr << "Read distance: " << distance << '\n';
-      return distance;
-    }
-    size_t default_distance = 32;
-    std::cerr << "Using default distance: " << default_distance << '\n';
-    return default_distance;
-  }();
-  return distance;
+size_t get_prefetch_distance_from_env() {
+  if (const char* env_var = std::getenv("PREFETCH_DISTANCE")) {
+    auto distance = static_cast<size_t>(std::stoi(env_var));
+    std::cerr << "Read distance: " << distance << '\n';
+    return distance;
+  }
+
+  size_t default_distance = 32;
+  std::cerr << "Using default distance: " << default_distance << '\n';
+  return default_distance;
 }
 
 template <typename ValueVectorIterator, typename PosListIteratorType>
 inline void prefetch_value(ValueVectorIterator values_begin_it, PosListIteratorType position_filter_it,
-                           PosListIteratorType position_filter_end) {
-  const size_t prefetch_distance = 32; // prefetch_distance_from_env();
+                           PosListIteratorType position_filter_end, size_t prefetch_distance) {
   const size_t distance_to_end = position_filter_end - position_filter_it;
   const size_t prefetch_distance_clamped = std::min(distance_to_end - 1, prefetch_distance);
   const auto prefetch_offset = (position_filter_it + prefetch_distance_clamped)->chunk_offset;
@@ -211,13 +209,14 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
 
     SegmentPosition<T> dereference() const {
       const auto& chunk_offsets = this->_chunk_offsets();
-      WIP::prefetch_value(_values_begin_it, this->_position_filter_it, _position_filter_end);
+      WIP::prefetch_value(_values_begin_it, this->_position_filter_it, _position_filter_end, _prefetch_distance);
       return SegmentPosition<T>{*(_values_begin_it + chunk_offsets.offset_in_referenced_chunk), false,
                                 chunk_offsets.offset_in_poslist};
     }
 
     ValueVectorIterator _values_begin_it;
     PosListIteratorType _position_filter_end;
+    size_t _prefetch_distance = Hyrise::get().prefetch_distance;
   };
 
   template <typename PosListIteratorType>
@@ -243,7 +242,7 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
 
     SegmentPosition<T> dereference() const {
       const auto& chunk_offsets = this->_chunk_offsets();
-      WIP::prefetch_value(_values_begin_it, this->_position_filter_it, _position_filter_end);
+      WIP::prefetch_value(_values_begin_it, this->_position_filter_it, _position_filter_end, _prefetch_distance);
       return SegmentPosition<T>{*(_values_begin_it + chunk_offsets.offset_in_referenced_chunk),
                                 *(_null_values_begin_it + chunk_offsets.offset_in_referenced_chunk),
                                 chunk_offsets.offset_in_poslist};
@@ -252,6 +251,7 @@ class ValueSegmentIterable : public PointAccessibleSegmentIterable<ValueSegmentI
     ValueVectorIterator _values_begin_it;
     NullValueVectorIterator _null_values_begin_it;
     PosListIteratorType _position_filter_end;
+    size_t _prefetch_distance = Hyrise::get().prefetch_distance;
   };
 };
 
