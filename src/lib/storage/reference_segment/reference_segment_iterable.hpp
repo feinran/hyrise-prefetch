@@ -208,7 +208,15 @@ class ReferenceSegmentIterable : public SegmentIterable<ReferenceSegmentIterable
         if (prefetch_iter < _end_pos_list_it) [[likely]] {
           const auto prefetch_offset = prefetch_iter->chunk_offset;
           if (prefetch_offset != INVALID_CHUNK_OFFSET) [[likely]] {
-            accessor.second->prefetch(prefetch_iter->chunk_offset);
+            if (chunk_id == prefetch_iter->chunk_id) [[likely]] {
+              accessor.second->prefetch(prefetch_offset);
+            } else {
+              const auto prefetch_chunk_id = prefetch_iter->chunk_id;
+              if (!(*_accessors)[prefetch_chunk_id].second) {
+                _create_accessor(prefetch_chunk_id);
+              }
+              (*_accessors)[prefetch_chunk_id].second->prefetch(prefetch_offset);
+            }
           }
         }
       }
