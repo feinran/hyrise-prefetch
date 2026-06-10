@@ -33,7 +33,7 @@ template <typename ValueVectorIterator, typename PosListIteratorType>
 inline void prefetch_value(ValueVectorIterator values_begin_it, PosListIteratorType position_filter_it,
                            PosListIteratorType position_filter_end) {
   const size_t prefetch_distance = 32; // prefetch_distance_from_env();
-  const size_t distance_to_end = std::distance(position_filter_it, position_filter_end);
+  const size_t distance_to_end = position_filter_end - position_filter_it;
   const size_t prefetch_distance_clamped = std::min(distance_to_end - 1, prefetch_distance);
   const auto prefetch_offset = (position_filter_it + prefetch_distance_clamped)->chunk_offset;
   const auto prefetch_address = std::to_address(values_begin_it + prefetch_offset);
