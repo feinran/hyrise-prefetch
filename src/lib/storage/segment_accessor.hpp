@@ -71,7 +71,7 @@ class SegmentAccessor final : public AbstractSegmentAccessor<T> {
   void prefetch(ChunkOffset offset) const override final {
     if constexpr (std::is_same_v<SegmentType, ValueSegment<T>>) {
       // std::cerr << std::format("(pref_o:{}-v:{}-ptr:", static_cast<size_t>(offset), _ptr[offset]) << &_ptr[offset] << ")";
-      __builtin_prefetch(&_ptr[offset], 0, 0);
+      // __builtin_prefetch(&_ptr[offset], 0, 0);
     }
   }
 
