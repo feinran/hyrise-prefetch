@@ -192,7 +192,7 @@ class ReferenceSegmentIterable : public SegmentIterable<ReferenceSegmentIterable
     SegmentPosition<T> dereference() const {
       const auto pos_list_offset = static_cast<ChunkOffset>(_pos_list_it - _begin_pos_list_it);
 
-      if (_pos_list_it->is_null()) [[unlikely]] {
+      if (_pos_list_it->is_null()) {
         return SegmentPosition<T>{T{}, true, pos_list_offset};
       }
 
@@ -224,7 +224,7 @@ class ReferenceSegmentIterable : public SegmentIterable<ReferenceSegmentIterable
       const auto chunk_offset = _pos_list_it->chunk_offset;
       const auto typed_value = accessor.second->access(chunk_offset);
 
-      if (typed_value) [[likely]] {
+      if (typed_value) {
         return SegmentPosition<T>{std::move(*typed_value), false, pos_list_offset};
       }
       return SegmentPosition<T>{T{}, true, pos_list_offset};
