@@ -35,7 +35,7 @@ inline void prefetch_value(ValueVectorIterator values_begin_it, PosListIteratorT
   const size_t prefetch_distance_clamped = std::min(distance_to_end - 1, prefetch_distance);
   const auto prefetch_offset = (position_filter_it + prefetch_distance_clamped)->chunk_offset;
   const auto prefetch_address = std::to_address(values_begin_it + prefetch_offset);
-  __builtin_prefetch(prefetch_address, 0, 3);
+  // __builtin_prefetch(prefetch_address, 0, 3);
 }
 }  // namespace WIP
 
