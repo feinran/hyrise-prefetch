@@ -106,26 +106,38 @@ class MultipleChunkReferenceSegmentAccessor final : public AbstractSegmentAccess
 
     const auto chunk_id = row_id.chunk_id;
 
-    // Grow the _accessors vector faster than linearly if the chunk_id is out of its current bounds
-    if (static_cast<size_t>(chunk_id) >= _accessors.size()) {
-      _accessors.resize(static_cast<size_t>(chunk_id + _accessors.size()));
-    }
+    _ensure_accessor_exists(chunk_id);
 
-    if (!_accessors[chunk_id].second) {
-      const auto segment = _table->get_chunk(chunk_id)->get_segment(_segment.referenced_column_id());
-      const auto value_segment = std::dynamic_pointer_cast<ValueSegment<T>>(segment);
-      _accessors[chunk_id] =
-          {value_segment != nullptr, create_segment_accessor<T>(std::move(segment))};
-    }
-
-    if (_accessors[chunk_id].first && (offset+_prefetch_distance < pos_list.size())) {
-      _accessors[chunk_id].second->prefetch(pos_list[offset+_prefetch_distance].chunk_offset);
+    if (_accessors[chunk_id].first) {
+      const auto prefetch_pos_list_offset = offset + _prefetch_distance;
+      if (prefetch_pos_list_offset < pos_list.size()) [[likely]] {
+        const auto& prefetch_row = pos_list[prefetch_pos_list_offset];
+        if (prefetch_row.chunk_id == chunk_id) [[likely]] {
+          _accessors[chunk_id].second->prefetch(prefetch_row.chunk_offset);
+        } else {
+          const auto prefetch_chunk_id = prefetch_row.chunk_id;
+          _ensure_accessor_exists(prefetch_chunk_id);
+          _accessors[prefetch_chunk_id].second->prefetch(prefetch_row.chunk_offset);
+        }
+      }
     }
 
     return _accessors[chunk_id].second->access(row_id.chunk_offset);
   }
 
  protected:
+  void _ensure_accessor_exists(const ChunkID chunk_id) const {
+    // Grow the _accessors vector faster than linearly if the chunk_id is out of its current bounds
+    if (static_cast<size_t>(chunk_id) >= _accessors.size()) {
+      _accessors.resize(static_cast<size_t>(chunk_id + _accessors.size()));
+    }
+    if (!_accessors[chunk_id].second) {
+      const auto segment = _table->get_chunk(chunk_id)->get_segment(_segment.referenced_column_id());
+      const auto value_segment = std::dynamic_pointer_cast<ValueSegment<T>>(segment);
+      _accessors[chunk_id] = {value_segment != nullptr, create_segment_accessor<T>(std::move(segment))};
+    }
+  }
+
   const ReferenceSegment& _segment;
   const std::shared_ptr<const Table> _table;
   const size_t _prefetch_distance = Hyrise::get().prefetch_distance;
