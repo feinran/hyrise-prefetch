@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "hyrise.hpp"
 #include "storage/base_segment_accessor.hpp"
 #include "storage/dictionary_segment.hpp"
 #include "types.hpp"
@@ -117,8 +118,8 @@ class MultipleChunkReferenceSegmentAccessor final : public AbstractSegmentAccess
           {value_segment != nullptr, create_segment_accessor<T>(std::move(segment))};
     }
 
-    if (_accessors[chunk_id].first && (offset+32 < pos_list.size())) {
-      _accessors[chunk_id].second->prefetch(pos_list[offset+32].chunk_offset);
+    if (_accessors[chunk_id].first && (offset+_prefetch_distance < pos_list.size())) {
+      _accessors[chunk_id].second->prefetch(pos_list[offset+_prefetch_distance].chunk_offset);
     }
 
     return _accessors[chunk_id].second->access(row_id.chunk_offset);
@@ -127,6 +128,7 @@ class MultipleChunkReferenceSegmentAccessor final : public AbstractSegmentAccess
  protected:
   const ReferenceSegment& _segment;
   const std::shared_ptr<const Table> _table;
+  const size_t _prefetch_distance = Hyrise::get().prefetch_distance;
   // Serves as a "dictionary" from ChunkID to Accessor. Lazily increased in size as Chunks are accessed.
   mutable std::vector<std::pair<bool, std::unique_ptr<AbstractSegmentAccessor<T>>>> _accessors{1};
 };
