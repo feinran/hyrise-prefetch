@@ -16,7 +16,7 @@ namespace hyrise {
 namespace WIP {
 // Reads PREFETCH_DISTANCE from the environment exactly once per program run.
 // Using an inline function ensures a single static instance across all translation units.
-size_t get_prefetch_distance_from_env() {
+inline size_t get_prefetch_distance_from_env() {
   if (const char* env_var = std::getenv("PREFETCH_DISTANCE")) {
     auto distance = static_cast<size_t>(std::stoi(env_var));
     std::cerr << "Read distance: " << distance << '\n';
